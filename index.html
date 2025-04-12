@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Alpha Trading Strategy – HMM + XGBoost</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #2563eb;
+      --success-color: #10b981;
+      --danger-color: #ef4444;
+      --warning-color: #f59e0b;
+      --background-color: #f8fafc;
+      --card-background: #ffffff;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --border-color: #e2e8f0;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--background-color);
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+
+    .title {
+      font-size: 1.875rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .description {
+      color: var(--text-secondary);
+      margin: 1rem 0;
+      max-width: 800px;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1.5rem;
+    }
+
+    .chart-section {
+      grid-column: span 8;
+      background: var(--card-background);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .metrics-section {
+      grid-column: span 4;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .price-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: var(--card-background);
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .current-price {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .price-change {
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      font-weight: 500;
+    }
+
+    .price-change.positive {
+      background-color: #dcfce7;
+      color: #166534;
+    }
+
+    .price-change.negative {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+
+    .metric-card {
+      background: var(--card-background);
+      padding: 1.5rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .metric-title {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .signal {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .signal.buy {
+      background-color: #dcfce7;
+      color: #166534;
+    }
+
+    .signal.sell {
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+
+    button {
+      background-color: var(--primary-color);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      background-color: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    .loader {
+      display: none;
+      padding: 1rem;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+
+    .error-message {
+      background-color: #fee2e2;
+      color: #991b1b;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      margin: 1rem 0;
+      display: none;
+    }
+
+    .requirements {
+      background: var(--card-background);
+      padding: 1.5rem;
+      border-radius: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .requirement {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.5rem 0;
+    }
+
+    .requirement.met {
+      color: #166534;
+    }
+
+    .requirement.not-met {
+      color: #991b1b;
+    }
+
+    .last-update {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      padding: 0.5rem 1rem;
+      background: var(--card-background);
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .chart-section,
+      .metrics-section {
+        grid-column: span 1;
+      }
+    }
+
+    .chart-container {
+      width: 100%;
+      height: 500px;
+      margin: 20px 0;
+      background: white;
+      border-radius: 10px;
+      padding: 2rem;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    #currentPrice {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin-right: 1rem;
+    }
+
+    .positive-change {
+      color: #22c55e;
+      font-size: 1.25rem;
+    }
+
+    .negative-change {
+      color: #ef4444;
+      font-size: 1.25rem;
+    }
+
+    .price-container {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1 class="title">🚀 Alpha Trading Strategy</h1>
+        <p class="description">
+          Advanced trading model combining HMM for regime detection and XGBoost for signal generation.
+          Targets: Sharpe Ratio ≥ 1.8, Maximum Drawdown ≥ -40%, Trade Frequency ≥ 3%.
+        </p>
+      </div>
+      <div class="last-update" id="lastUpdate">Last updated: -</div>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="chart-section">
+        <div class="price-info">
+          <div class="current-price">Loading...</div>
+          <div class="price-change">...</div>
+        </div>
+        <div style="height: 400px;">
+          <canvas id="priceChart"></canvas>
+        </div>
+      </div>
+
+      <div class="metrics-section">
+        <div class="metric-card">
+          <div class="metric-title">Current Signal</div>
+          <div id="signal" class="signal">Loading...</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Model Accuracy</div>
+          <div class="metric-value" id="accuracy">-</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Sharpe Ratio</div>
+          <div class="metric-value" id="sharpe">-</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-title">Max Drawdown</div>
+          <div class="metric-value" id="drawdown">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="requirements" id="requirements">
+      <h3>Performance Requirements</h3>
+      <div class="requirement" id="sharpe-req">
+        ✦ Sharpe Ratio ≥ 1.8
+      </div>
+      <div class="requirement" id="drawdown-req">
+        ✦ Maximum Drawdown ≥ -40%
+      </div>
+      <div class="requirement" id="frequency-req">
+        ✦ Trade Frequency ≥ 3%
+      </div>
+    </div>
+
+    <div class="loader" id="loader">⏳ Running analysis... Please wait.</div>
+    <div id="error-container" class="error-message"></div>
+  </div>
+
+  <script>
+    const API_BASE_URL = 'http://localhost:5000';
+    let chartInstance = null;  // Global chart reference with a more specific name
+    
+    function showError(message) {
+      const errorContainer = document.getElementById('error-container');
+      errorContainer.textContent = message;
+      errorContainer.style.display = 'block';
+    }
+
+    function hideError() {
+      document.getElementById('error-container').style.display = 'none';
+    }
+
+    // Function to safely destroy existing chart
+    function destroyChart() {
+      if (chartInstance) {
+        chartInstance.destroy();
+        chartInstance = null;
+      }
+    }
+
+    async function fetchChartData() {
+      try {
+        hideError();
+        const response = await fetch(`${API_BASE_URL}/chart-data`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const result = await response.json();
+        if (result.status === 'success') {
+          await createOrUpdateChart(result.data);
+          updatePriceInfo(result.data);
+        } else {
+          throw new Error(result.message || 'Failed to fetch chart data');
+        }
+      } catch (error) {
+        console.error('Error fetching chart data:', error);
+        showError(`Failed to fetch chart data: ${error.message}`);
+      }
+    }
+
+    function updatePriceInfo(data) {
+      const priceElement = document.querySelector('.current-price');
+      const changeElement = document.querySelector('.price-change');
+      
+      priceElement.textContent = `$${data.latest_price.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+      
+      const change = data.price_change;
+      const changePercent = data.price_change_percent;
+      const changeText = `${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)`;
+      
+      changeElement.textContent = changeText;
+      changeElement.className = `price-change ${change >= 0 ? 'positive' : 'negative'}`;
+    }
+
+    async function createOrUpdateChart(data) {
+      // Get the canvas element
+      const canvas = document.getElementById('priceChart');
+      const ctx = canvas.getContext('2d');
+
+      // Ensure proper cleanup of existing chart
+      destroyChart();
+
+      // Clear the canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Prepare the candlestick data with proper date parsing
+      const chartData = data.candlesticks.map(d => {
+        // Ensure the date is properly parsed
+        const timestamp = new Date(d.time).getTime();
+        if (isNaN(timestamp)) {
+          console.error('Invalid date:', d.time);
+          return null;
+        }
+        return {
+          x: timestamp,
+          o: parseFloat(d.open) || 0,
+          h: parseFloat(d.high) || 0,
+          l: parseFloat(d.low) || 0,
+          c: parseFloat(d.close) || 0
+        };
+      }).filter(d => d !== null); // Remove any invalid entries
+
+      // Sort data by timestamp
+      chartData.sort((a, b) => a.x - b.x);
+
+      // Create new chart with error handling
+      try {
+        chartInstance = new Chart(ctx, {
+          type: 'candlestick',
+          data: {
+            datasets: [{
+              label: 'BTC/USDT',
+              data: chartData,
+              color: {
+                up: '#22c55e',
+                down: '#ef4444',
+              }
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                type: 'time',
+                time: {
+                  unit: 'hour',
+                  displayFormats: {
+                    hour: 'MMM d, HH:mm'
+                  },
+                  tooltipFormat: 'MMM d, yyyy HH:mm'
+                },
+                grid: {
+                  display: false
+                },
+                ticks: {
+                  maxRotation: 0,
+                  autoSkip: true,
+                  maxTicksLimit: 10
+                }
+              },
+              y: {
+                position: 'right',
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.1)'
+                },
+                ticks: {
+                  callback: function(value) {
+                    return '$' + value.toLocaleString();
+                  }
+                }
+              }
+            },
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const d = context.raw;
+                    return [
+                      `Open: $${d.o.toLocaleString()}`,
+                      `High: $${d.h.toLocaleString()}`,
+                      `Low: $${d.l.toLocaleString()}`,
+                      `Close: $${d.c.toLocaleString()}`
+                    ];
+                  }
+                }
+              }
+            },
+            animation: {
+              duration: 0 // Disable animations for better performance
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Error creating chart:', error);
+        showError(`Failed to create chart: ${error.message}`);
+        
+        // Log detailed error information
+        console.log('Chart data sample:', chartData.slice(0, 5));
+        console.log('Total data points:', chartData.length);
+      }
+    }
+
+    async function updateModelResults() {
+      try {
+        hideError();
+        const response = await fetch(`${API_BASE_URL}/run-model`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        
+        if (data.status === 'success') {
+          // Update signal
+          const signalElement = document.getElementById('signal');
+          signalElement.textContent = `${data.prediction.signal} (${data.prediction.confidence.toFixed(2)}% confidence)`;
+          signalElement.className = `signal ${data.prediction.signal.toLowerCase()}`;
+          
+          // Update metrics
+          const accuracyElement = document.getElementById('accuracy');
+          const sharpeElement = document.getElementById('sharpe');
+          const drawdownElement = document.getElementById('drawdown');
+          accuracyElement.textContent = `${(data.accuracy * 100).toFixed(2)}%`;
+          sharpeElement.textContent = data.performance_metrics.sharpe_ratio.toFixed(2);
+          drawdownElement.textContent = `${(data.performance_metrics.max_drawdown * 100).toFixed(2)}%`;
+
+          // Update requirements status
+          document.getElementById('sharpe-req').className = `requirement ${data.performance_metrics.sharpe_ratio >= 1.8 ? 'met' : 'not-met'}`;
+          document.getElementById('drawdown-req').className = `requirement ${data.performance_metrics.max_drawdown >= -0.4 ? 'met' : 'not-met'}`;
+          document.getElementById('frequency-req').className = `requirement ${data.performance_metrics.trade_frequency >= 0.03 ? 'met' : 'not-met'}`;
+        } else {
+          throw new Error(data.message || 'Failed to update model results');
+        }
+      } catch (error) {
+        console.error('Error updating model results:', error);
+        showError(`Failed to update model results: ${error.message}`);
+      }
+    }
+
+    function updateLastUpdateTime() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString();
+      document.getElementById('lastUpdate').textContent = `Last updated: ${timeString}`;
+    }
+
+    // Update the refresh interval to 1 minute
+    let updateInterval = 60000; // 1 minute
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        // Show loading state
+        document.getElementById('loader').style.display = 'block';
+        
+        // Initial data fetch
+        await Promise.all([fetchChartData(), updateModelResults()]);
+        
+        document.getElementById('loader').style.display = 'none';
+        updateLastUpdateTime();
+      } catch (error) {
+        console.error('Error during initial load:', error);
+        showError(`Failed to initialize dashboard: ${error.message}`);
+        document.getElementById('loader').style.display = 'none';
+      }
+    });
+
+    // Auto-refresh with error handling
+    setInterval(async () => {
+      try {
+        await Promise.all([fetchChartData(), updateModelResults()]);
+        updateLastUpdateTime();
+      } catch (error) {
+        console.error('Error during refresh:', error);
+        showError(`Failed to refresh data: ${error.message}`);
+      }
+    }, updateInterval);
+  </script>
+</body>
+</html>

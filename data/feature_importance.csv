@@ -1,0 +1,14 @@
+feature,importance
+bb_position_20,0.23781058
+returns,0.09420903
+log_returns,0.08130687
+ma_cross_long,0.065846734
+momentum_5d,0.06471928
+rsi_14,0.062840976
+volume_trend,0.0606827
+ma_cross_short,0.06006705
+trend_strength,0.05893308
+volatility_ratio_20,0.05771139
+volume_ratio,0.05594561
+market_state,0.05014214
+volatility_20,0.04978456

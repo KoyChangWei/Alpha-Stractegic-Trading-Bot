@@ -1,0 +1,10 @@
+flask==3.0.0
+flask-cors==4.0.0
+pandas==2.1.4
+numpy==1.24.3
+scikit-learn==1.3.2
+xgboost==2.0.3
+hmmlearn==0.3.0
+python-dateutil==2.8.2
+requests==2.31.0
+cybotrade-datasource==1.0.0
