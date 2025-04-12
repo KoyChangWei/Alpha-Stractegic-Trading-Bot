@@ -1,6 +1,6 @@
 # Alpha Trading Strategy - HMM + XGBoost Model
 
-![Trading Dashboard](./assets/dashboard.png)
+![屏幕截图 2025-04-12 142140](https://github.com/user-attachments/assets/019ba5cf-8b84-4763-866d-7c5295839e2f)
 
 ## 🚀 Project Overview
 
